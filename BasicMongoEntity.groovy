@@ -1,2 +1,2 @@
-class GroovyORMEntity {
+class BasicMongoEntity {
 }

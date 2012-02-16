@@ -1,7 +1,7 @@
 import groovy.transform.ToString
 import org.bson.types.ObjectId
 @ToString(includeNames = true, includeFields = true)
-class Person extends GroovyORMEntity {
+class Person extends BasicMongoEntity {
    ObjectId _id
    String firstName
    String secondName

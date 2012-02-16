@@ -1,7 +1,13 @@
+import com.mongodb.Mongo;
+import com.mongodb.DB;
+import com.mongodb.DBCollection;
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
+import com.mongodb.DBCursor;
 import groovy.util.logging.Log4j
 
 @Log4j
-class ORMEnhancer {
+class MongoEnhancer {
    def enhanceDomainClass(className) {
       Class c = Class.forName(className)
       c.metaClass.asBasicDBObject = constructBasicDBObject(className)
@@ -17,9 +23,8 @@ class ORMEnhancer {
       Class c = Class.forName(className)
       def props = c.metaClass.properties
       props.removeAll { p -> p.name =~ /class|metaClass/ }
-      def tabName = props.remove("tableName")
       return {
-         Map doc = [:]
+         BasicDBObject doc = new BasicDBObject()
          props.each { 
             def p = delegate["${it.name}"]
             log.trace(" => Working on ${it.name}: $p")
@@ -64,19 +69,48 @@ class ORMEnhancer {
          if ( ! delegate.validate() ) {
             return false
          }
-         Map doc = delegate.asBasicDBObject()
-         def connection = Database.mydb
+         BasicDBObject doc = delegate.asBasicDBObject()
+         DB db = MongoDatabase.mydb
+         DBCollection coll = db.getCollection(className)
          log.trace("* Inserting BasicDBObject=$doc")
-         connection.insert(doc)
+         coll.insert(doc)
+         return true
+      }
+   }
+
+   def constructUpdateStatement(className) {
+      return {
+         if ( ! delegate.validate() ) {
+            return false
+         }
+         BasicDBObject doc = delegate.asBasicDBObject()
+         DB db = MongoDatabase.mydb
+         DBCollection coll = db.getCollection(className)
+         log.trace("* Updating BasicDBObject=$doc")
+         coll.save(doc) //This uses upsert... so might insert if _id is not set
          return true
       }
    }
 
 
+   def constructUpsertStatement(className) {
+      return {
+         if ( ! delegate.validate() ) {
+            return false
+         }
+         BasicDBObject doc = delegate.asBasicDBObject()
+         DB db = MongoDatabase.mydb
+         DBCollection coll = db.getCollection(className)
+         log.trace( "* Upserting BasicDBObject=$doc" )
+         coll.save(doc)
+         return true
+      }
+   }
+
    def constructFindStatement(className) {
       return {
          BasicDBObject doc = delegate.asBasicDBObject()
-         DB db = Database.mydb
+         DB db = MongoDatabase.mydb
          DBCollection coll = db.getCollection(className)
          log.trace( "Finding $doc in collection $className" )
          def cur = coll.find(doc)
@@ -86,7 +120,7 @@ class ORMEnhancer {
    def constructCountStatement(className) {
       return {
          BasicDBObject doc = delegate.asBasicDBObject()
-         DB db = Database.mydb
+         DB db = MongoDatabase.mydb
          DBCollection coll = db.getCollection(className)
          log.trace( "Counting $doc in collection $className" )
          return coll.getCount()
@@ -95,7 +129,7 @@ class ORMEnhancer {
 
    def constructDropStatement(className) {
       return {
-         DB db = Database.mydb
+         DB db = MongoDatabase.mydb
          DBCollection coll = db.getCollection(className)
          log.trace( "Droping collection $className" )
          def cur = coll.drop()
